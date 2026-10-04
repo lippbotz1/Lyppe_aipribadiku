@@ -930,8 +930,10 @@ async function generateResponse(chat) {
     if (typing.isConnected) typing.remove();
     if (botDiv && botDiv.isConnected) botDiv.remove();
     let errMsg = err.message || 'Terjadi kesalahan';
-    if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('sibuk') || errMsg.includes('rate')) {
-      errMsg = '⏳ Server AI sedang ramai. Tunggu sebentar lalu coba lagi ya 🙏';
+    if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('rate')) {
+      errMsg = '⏳ Batas penggunaan Gemini tercapai. Tunggu sebentar lalu coba lagi.';
+    } else if (errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('overloaded')) {
+      errMsg = '⏳ Server Gemini sedang sibuk. Coba lagi sebentar lagi.';
     } else if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError')) {
       errMsg = '🌐 Tidak dapat terhubung. Cek koneksi internet kamu.';
     } else if (errMsg.includes('401') || errMsg.includes('API key')) {
