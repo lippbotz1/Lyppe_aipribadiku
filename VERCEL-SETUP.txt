@@ -1,5 +1,5 @@
-LYPPE AI - VERCEL FAST RESPONSE SETUP
-=====================================
+LYPPE AI - FAST RESPONSE + KNOWLEDGE UPGRADE
+=============================================
 
 1. Environment Variable WAJIB di Vercel:
    Name: GEMINI_API_KEY
@@ -8,17 +8,20 @@ LYPPE AI - VERCEL FAST RESPONSE SETUP
 
 2. Setelah mengubah Environment Variable, lakukan REDEPLOY.
 
-3. Backend memakai Gemini 3.8 Flash dengan thinking level LOW untuk respons lebih cepat.
+3. Backend memakai Gemini 3.8 Flash dengan thinking level LOW untuk respons cepat.
 
-4. Backend mengirim heartbeat SSE sejak awal untuk mencegah request streaming idle/504.
+4. Mode SEARCH menggunakan Google Search grounding untuk pertanyaan yang membutuhkan informasi terkini.
+   Mode PINTAR tetap tanpa pencarian agar respons umum tetap cepat.
 
-5. History chat dibatasi ke pesan terbaru dan hanya gambar terbaru yang dikirim ke Gemini
-   agar payload multimodal lebih ringan dan cepat.
+5. Backend mengirim heartbeat SSE sejak awal untuk membantu mencegah request streaming idle/504.
 
-6. API key HANYA dibaca server-side dari process.env.GEMINI_API_KEY.
+6. History chat dibatasi ke pesan terbaru dan hanya gambar terbaru yang dikirim ke Gemini agar payload lebih ringan.
+
+7. API key HANYA dibaca server-side dari process.env.GEMINI_API_KEY.
    JANGAN taruh API key di index.html atau GitHub.
 
 Model: gemini-3.8-flash
-Thinking: low (prioritas kecepatan)
+Thinking: low
 Streaming: aktif
-Fallback model berurutan: sengaja dimatikan agar tidak menambah delay.
+Search grounding: aktif khusus MODE SEARCH
+Fallback model berurutan: dimatikan agar tidak menambah delay.
