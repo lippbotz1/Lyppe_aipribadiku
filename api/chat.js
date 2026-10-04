@@ -5,9 +5,10 @@
 export const config = { runtime: 'edge' };
 
 const DEFAULT_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash'
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash-lite'
 ];
 
 const MODE_PROMPTS = {
@@ -123,8 +124,10 @@ export default async function handler(req) {
       contents,
       systemInstruction: { parts: [{ text: systemPrompt }] },
       generationConfig: {
-        temperature: mode === 'coding' || mode === 'desain' ? 0.3 : 0.7,
-        maxOutputTokens: 8192
+        maxOutputTokens: 8192,
+        thinkingConfig: {
+          thinkingLevel: mode === 'coding' ? 'high' : 'medium'
+        }
       }
     };
 
