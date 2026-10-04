@@ -1,21 +1,17 @@
-// Lyppe AI - Vercel Serverless Function
-// Gemini API key HARUS disimpan di Vercel Environment Variable:
+// Lyppe AI - Vercel Fast Response Backend
+// API key tetap SERVER-SIDE di Vercel Environment Variable.
 // GEMINI_API_KEY=AIza...
 
 export const config = { runtime: 'edge' };
 
-const DEFAULT_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash-lite'
-];
+// Fast + stable model. Jangan pakai model lama di sini.
+const MODEL = 'gemini-3.8-flash';
 
 const MODE_PROMPTS = {
-  search: `Kamu adalah Lyppe AI dalam MODE SEARCH. Fokus menjawab pertanyaan user dengan fakta yang akurat, jelas, dan terstruktur. Sajikan informasi seperti hasil pencarian: poin-poin penting, penjelasan singkat, dan jika relevan sebutkan sumber/kategori. Hindari opini pribadi, utamakan informasi faktual. Format dengan heading dan bullet bila perlu. Jawab dalam Bahasa Indonesia.`,
-  pintar: `Kamu adalah Lyppe AI dalam MODE PINTAR. Jawab pertanyaan user dengan cerdas, lengkap, dan mendalam. Gunakan penalaran yang baik, berikan contoh bila perlu, dan susun jawaban secara terstruktur dengan markdown. Jawab dalam Bahasa Indonesia.`,
-  coding: `Kamu adalah Lyppe AI dalam MODE CODING. Khusus menjawab pertanyaan seputar programming: tulis kode yang LENGKAP dan SIAP PAKAI, sertakan komentar di kode, jelaskan cara kerja kode, berikan contoh penggunaan, dan sebutkan bahasa/framework yang dipakai. Selalu pakai code block dengan bahasa yang sesuai. Jika user minta dibuatkan aplikasi/fitur, buat kode lengkap dari awal sampai siap run. Jawab dalam Bahasa Indonesia.`,
-  desain: `Kamu adalah Lyppe AI dalam MODE DESAIN. Khusus membantu soal UI/UX, desain web, layout, warna, tipografi, dan CSS. Berikan saran desain yang modern, estetis, dan bisa langsung dipraktikkan. Sertakan kode HTML/CSS bila perlu dengan styling yang menarik (gradient, shadow, animasi, responsive). Sebutkan prinsip desain yang dipakai. Jawab dalam Bahasa Indonesia.`
+  search: `Kamu adalah Lyppe AI dalam MODE SEARCH. Fokus menjawab pertanyaan user dengan fakta yang akurat, jelas, dan terstruktur. Sajikan poin penting secara ringkas. Jika relevan, sebutkan sumber/kategori. Jawab dalam Bahasa Indonesia.`,
+  pintar: `Kamu adalah Lyppe AI dalam MODE PINTAR. Jawab dengan cerdas, jelas, akurat, dan langsung ke inti. Berikan penjelasan yang cukup tanpa bertele-tele. Gunakan markdown bila membantu. Jawab dalam Bahasa Indonesia.`,
+  coding: `Kamu adalah Lyppe AI dalam MODE CODING. Jawab pertanyaan programming dengan kode yang siap pakai. Jika diminta membuat aplikasi/fitur, berikan kode lengkap yang diperlukan dan langkah penggunaan secara ringkas. Gunakan code block. Jawab dalam Bahasa Indonesia.`,
+  desain: `Kamu adalah Lyppe AI dalam MODE DESAIN. Bantu soal UI/UX, web design, layout, warna, tipografi, HTML/CSS, dan responsive design. Berikan solusi yang modern dan langsung bisa dipakai. Jawab dalam Bahasa Indonesia.`
 };
 
 function responseJson(data, status, cors) {
@@ -29,23 +25,6 @@ function responseJson(data, status, cors) {
   });
 }
 
-function getKeys() {
-  const one = (process.env.GEMINI_API_KEY || '').trim();
-  const many = (process.env.GEMINI_API_KEYS || '')
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean);
-  return [...new Set([one, ...many].filter(Boolean))];
-}
-
-function getModels() {
-  const configured = (process.env.GEMINI_MODEL || '')
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean);
-  return [...new Set([...configured, ...DEFAULT_MODELS])];
-}
-
 function parseDataUrl(value) {
   if (typeof value !== 'string') return null;
   const match = value.match(/^data:([^;]+);base64,(.+)$/s);
@@ -53,7 +32,21 @@ function parseDataUrl(value) {
 }
 
 function buildContents(messages) {
-  return messages.map(m => {
+  // Jangan kirim seluruh history jika chat sudah panjang.
+  // Ini mengurangi payload dan mempercepat time-to-first-token.
+  const recent = messages.slice(-14);
+
+  // Hanya gambar TERBARU yang dikirim ke Gemini.
+  // Mengirim banyak gambar lama dapat membuat request jauh lebih lambat.
+  let latestImageIndex = -1;
+  for (let i = recent.length - 1; i >= 0; i--) {
+    if (recent[i]?.attachment?.type === 'image') {
+      latestImageIndex = i;
+      break;
+    }
+  }
+
+  return recent.map((m, index) => {
     const role = m.role === 'bot' || m.role === 'model' ? 'model' : 'user';
     const parts = [];
 
@@ -61,7 +54,7 @@ function buildContents(messages) {
       parts.push({ text: m.content });
     }
 
-    if (role === 'user' && m.attachment?.type === 'image') {
+    if (role === 'user' && index === latestImageIndex && m.attachment?.type === 'image') {
       const image = parseDataUrl(m.attachment.dataUrl);
       if (image) {
         parts.push({
@@ -101,8 +94,8 @@ export default async function handler(req) {
   if (req.method !== 'POST') return responseJson({ error: 'Method not allowed' }, 405, cors);
 
   try {
-    const keys = getKeys();
-    if (!keys.length) {
+    const key = (process.env.GEMINI_API_KEY || '').trim();
+    if (!key) {
       return responseJson({
         error: 'GEMINI_API_KEY belum tersedia. Tambahkan GEMINI_API_KEY di Vercel → Settings → Environment Variables, lalu REDEPLOY.'
       }, 500, cors);
@@ -124,21 +117,39 @@ export default async function handler(req) {
       contents,
       systemInstruction: { parts: [{ text: systemPrompt }] },
       generationConfig: {
-        maxOutputTokens: 8192,
-        thinkingConfig: {
-          thinkingLevel: mode === 'coding' ? 'high' : 'medium'
-        }
+        // LOW = prioritas latensi cepat. Gemini 3.8 tetap melakukan sedikit reasoning.
+        thinkingConfig: { thinkingLevel: 'low' },
+        maxOutputTokens: 4096
       }
     };
 
-    const models = getModels();
-    let upstream = null;
-    let lastError = 'Tidak ada respons dari Gemini.';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`;
 
-    // Coba semua kombinasi key + model. API key TIDAK dikirim dari browser.
-    for (const key of keys) {
-      for (const model of models) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+    // Buat response stream SEBELUM menunggu Gemini.
+    // Vercel Edge dapat segera mengirim heartbeat sehingga request tidak dianggap idle/504.
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        let timer = null;
+        let closed = false;
+
+        const safeEnqueue = (chunk) => {
+          if (!closed) {
+            try { controller.enqueue(encoder.encode(chunk)); } catch {}
+          }
+        };
+
+        // Chunk pertama dikirim langsung.
+        safeEnqueue(': connected\n\n');
+
+        // Heartbeat selama Gemini belum mengirim token.
+        timer = setInterval(() => {
+          safeEnqueue(`: keepalive ${Date.now()}\n\n`);
+        }, 8000);
+
+        const abort = new AbortController();
+        const timeout = setTimeout(() => abort.abort(), 55000);
+
         try {
           const res = await fetch(url, {
             method: 'POST',
@@ -146,40 +157,21 @@ export default async function handler(req) {
               'Content-Type': 'application/json',
               'x-goog-api-key': key
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            signal: abort.signal
           });
 
-          if (res.ok && res.body) {
-            upstream = res;
-            console.log(`[Lyppe AI] Gemini OK: ${model}`);
-            break;
+          if (!res.ok || !res.body) {
+            const detail = await geminiError(res);
+            sendSse(controller, encoder, { error: `Gemini ${res.status}: ${detail}` });
+            safeEnqueue('data: [DONE]\n\n');
+            return;
           }
 
-          const detail = await geminiError(res);
-          lastError = `${model}: ${detail}`;
-          console.error(`[Lyppe AI] ${lastError}`);
-        } catch (err) {
-          lastError = `${model}: ${err?.message || 'Network error'}`;
-          console.error(`[Lyppe AI] ${lastError}`);
-        }
-      }
-      if (upstream) break;
-    }
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
 
-    if (!upstream) {
-      return responseJson({
-        error: `Gemini gagal diakses. Cek GEMINI_API_KEY dan API/kuota Gemini di Google AI Studio. Detail: ${lastError}`
-      }, 502, cors);
-    }
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = upstream.body.getReader();
-        const decoder = new TextDecoder();
-        const encoder = new TextEncoder();
-        let buffer = '';
-
-        try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -202,12 +194,11 @@ export default async function handler(req) {
                   .join('');
                 if (text) sendSse(controller, encoder, { text });
               } catch {
-                // Abaikan SSE line yang belum lengkap / bukan JSON.
+                // Abaikan event SSE yang belum lengkap.
               }
             }
           }
 
-          // Proses event terakhir kalau tidak diakhiri newline.
           const last = buffer.trim();
           if (last.startsWith('data:')) {
             try {
@@ -219,15 +210,19 @@ export default async function handler(req) {
             } catch {}
           }
 
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
+          safeEnqueue('data: [DONE]\n\n');
         } catch (err) {
-          console.error('[Lyppe AI] stream error:', err);
-          try {
-            sendSse(controller, encoder, { error: err?.message || 'Stream error' });
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch {}
+          const message = err?.name === 'AbortError'
+            ? 'Gemini terlalu lama merespons. Coba kirim ulang atau kurangi ukuran gambar.'
+            : (err?.message || 'Gagal menghubungi Gemini.');
+          console.error('[Lyppe AI] upstream error:', message);
+          sendSse(controller, encoder, { error: message });
+          safeEnqueue('data: [DONE]\n\n');
+        } finally {
+          clearTimeout(timeout);
+          if (timer) clearInterval(timer);
+          closed = true;
+          try { controller.close(); } catch {}
         }
       }
     });
