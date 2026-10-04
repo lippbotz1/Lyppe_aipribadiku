@@ -40,7 +40,7 @@ function buildContents(messages) {
   // Mengirim banyak gambar lama dapat membuat request jauh lebih lambat.
   let latestImageIndex = -1;
   for (let i = recent.length - 1; i >= 0; i--) {
-    if (recent[i]?.attachment?.type === 'image') {
+    if (recent[i]?.attachment?.type === 'image' || recent[i]?.attachment?.type === 'video') {
       latestImageIndex = i;
       break;
     }
@@ -54,7 +54,7 @@ function buildContents(messages) {
       parts.push({ text: m.content });
     }
 
-    if (role === 'user' && index === latestImageIndex && m.attachment?.type === 'image') {
+    if (role === 'user' && index === latestImageIndex && (m.attachment?.type === 'image' || m.attachment?.type === 'video')) {
       const image = parseDataUrl(m.attachment.dataUrl);
       if (image) {
         parts.push({
@@ -120,7 +120,7 @@ export default async function handler(req) {
       generationConfig: {
         // LOW = prioritas latensi cepat. Gemini 3.8 tetap melakukan sedikit reasoning.
         thinkingConfig: { thinkingLevel: 'low' },
-        maxOutputTokens: 4096
+        maxOutputTokens: mode === 'coding' ? 4096 : 2048
       }
     };
 
