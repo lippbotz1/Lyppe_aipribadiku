@@ -139,8 +139,16 @@ body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: -appl
 .msg-content > pre code { background: transparent; padding: 0; color: #c9d1d9; font-size: 12.5px; border: none; font-family: inherit; }
 
 .msg-attachment { margin-top: 4px; display: inline-block; max-width: 100%; position: relative; }
-.msg-attachment img { max-width: 220px; max-height: 220px; border-radius: 10px; border: 1px solid var(--border); display: block; object-fit: cover; }
-.msg.user .msg-attachment img { margin-left: auto; }
+.msg-attachment img, .msg-attachment video { max-width: 240px; max-height: 280px; width: auto; border-radius: 10px; border: 1px solid var(--border); display: block; object-fit: cover; cursor: zoom-in; background: #000; }
+.msg.user .msg-attachment img, .msg.user .msg-attachment video { margin-left: auto; }
+.msg-attachment .media-hint { font-size: 10px; color: var(--text-2); margin-top: 3px; opacity: .8; text-align: center; }
+.media-modal { position: fixed; inset: 0; z-index: 10000; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.88); overscroll-behavior: contain; }
+.media-modal.show { display: flex; }
+.media-modal .media-backdrop { position: absolute; inset: 0; }
+.media-view { position: relative; z-index: 1; max-width: 96vw; max-height: 88vh; display: flex; align-items: center; justify-content: center; }
+.media-view img, .media-view video { display: block; max-width: 96vw; max-height: 84vh; width: auto; height: auto; border-radius: 12px; object-fit: contain; background: #000; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.media-close { position: fixed; top: calc(14px + env(safe-area-inset-top,0px)); right: 14px; z-index: 2; width: 44px; height: 44px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(20,20,20,.82); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.media-close svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2.2; }
 .msg-attachment .file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text-2); }
 .msg-attachment .file-chip svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
 
@@ -404,6 +412,12 @@ body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: -appl
   <iframe id="previewFrame" class="preview-frame" sandbox="allow-scripts allow-modals allow-forms allow-popups"></iframe>
 </div>
 
+<div class="media-modal" id="mediaModal" aria-hidden="true">
+  <div class="media-backdrop" onclick="closeMediaViewer()"></div>
+  <button type="button" class="media-close" onclick="closeMediaViewer()" title="Tutup" aria-label="Tutup"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="media-view" id="mediaView"></div>
+</div>
+
 <div class="attach-backdrop" id="attachBackdrop" onclick="closeAttachMenu()"></div>
 <div class="attach-menu" id="attachMenu">
   <button type="button" class="attach-item" onclick="pickAttach('camera')">
@@ -416,7 +430,7 @@ body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: -appl
     <div class="ico photo">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
     </div>
-    <div class="label"><div class="title">Foto & Gambar</div><div class="desc">Pilih dari galeri</div></div>
+    <div class="label"><div class="title">Foto & Video</div><div class="desc">Pilih dari galeri</div></div>
   </button>
   <button type="button" class="attach-item" onclick="pickAttach('file')">
     <div class="ico file">
@@ -427,7 +441,7 @@ body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: -appl
 </div>
 
 <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
-<input type="file" id="photoInput" accept="image/*" style="display:none;">
+<input type="file" id="photoInput" accept="image/*,video/*" style="display:none;">
 <input type="file" id="fileInput" accept="*/*" style="display:none;">
 
 <div class="toast" id="toast"></div>
@@ -614,12 +628,24 @@ function createMsg(role, content, attachment) {
   let attachHTML = '';
   if (attachment) {
     if (attachment.type === 'image') {
-      attachHTML = `<div class="msg-attachment"><img src="${attachment.dataUrl}" alt="${escapeHtml(attachment.name || 'gambar')}"></div>`;
+      attachHTML = `<div class="msg-attachment"><img class="media-thumb" alt="${escapeHtml(attachment.name || 'gambar')}"><div class="media-hint">Ketuk untuk memperbesar</div></div>`;
+    } else if (attachment.type === 'video') {
+      attachHTML = `<div class="msg-attachment"><video class="media-thumb" playsinline preload="metadata"></video><div class="media-hint">Ketuk untuk memperbesar</div></div>`;
     } else {
       attachHTML = `<div class="msg-attachment"><div class="file-chip">${ICONS.file}<span class="fname">${escapeHtml(attachment.name)}</span></div></div>`;
     }
   }
   div.innerHTML = `<div class="msg-avatar">${avatarHTML}</div><div class="msg-content"><div class="text">${html}</div>${attachHTML}</div>`;
+  if (attachment && (attachment.type === 'image' || attachment.type === 'video')) {
+    const media = div.querySelector('.media-thumb');
+    if (media) {
+      media.src = attachment.dataUrl;
+      media.addEventListener('click', (e) => {
+        if (attachment.type === 'video') e.stopPropagation();
+        openMediaViewer(attachment.dataUrl, attachment.type, attachment.name || 'media');
+      });
+    }
+  }
   if (role === 'bot') enhanceCodeBlocks(div);
   addMsgActions(div, role === 'bot');
   return div;
@@ -747,40 +773,13 @@ function previewClose() { document.getElementById('previewModal').classList.remo
 // TYPEWRITER EFFECT
 // ============================================================
 function typewriterEffect(el, fullText) {
-  return new Promise(resolve => {
-    const total = fullText.length;
-    if (total === 0) { resolve(); return; }
-    let shown = 0;
-    const area = document.getElementById('chatArea');
-    const msgEl = el.closest('.msg');
-    if (msgEl) msgEl.dataset.streaming = '1';
-    let batch, delay;
-    if (total < 100) { batch = 2; delay = 16; }
-    else if (total < 300) { batch = 4; delay = 13; }
-    else if (total < 800) { batch = 6; delay = 11; }
-    else if (total < 2000) { batch = 12; delay = 11; }
-    else { batch = 20; delay = 11; }
-    let lastScroll = 0, lastEnhance = 0;
-    function step() {
-      if (shown >= total) {
-        el.innerHTML = renderMD(fullText);
-        if (msgEl) {
-          delete msgEl.dataset.streaming;
-          enhanceCodeBlocks(msgEl);
-          msgEl.querySelectorAll('.code-block-wrapper code').forEach(c => { if (window.hljs) { try { hljs.highlightElement(c); } catch(e) {} } });
-        }
-        resolve();
-        return;
-      }
-      shown = Math.min(shown + batch, total);
-      el.innerHTML = renderMD(fullText.slice(0, shown));
-      const now = Date.now();
-      if (msgEl && now - lastEnhance > 150) { enhanceCodeBlocks(msgEl); lastEnhance = now; }
-      if (now - lastScroll > 60) { area.scrollTop = area.scrollHeight; lastScroll = now; }
-      setTimeout(step, delay);
-    }
-    step();
-  });
+  // Tetap mempertahankan nama fungsi agar kompatibel, tetapi sengaja TANPA delay.
+  // Balasan harus tampil secepat teks diterima.
+  el.innerHTML = renderMD(fullText);
+  const msgEl = el.closest('.msg');
+  if (msgEl) { enhanceCodeBlocks(msgEl); msgEl.querySelectorAll('.code-block-wrapper code').forEach(c => { if (window.hljs) { try { hljs.highlightElement(c); } catch(e) {} } }); }
+  scrollBottom();
+  return Promise.resolve();
 }
 
 // ============================================================
@@ -838,6 +837,32 @@ async function generateResponse(chat) {
   scrollBottom();
 
   let fullText = '';
+  let botDiv = null;
+  let textEl = null;
+  let renderQueued = false;
+
+  const ensureBot = () => {
+    if (botDiv) return;
+    typing.remove();
+    botDiv = createMsg('bot', '');
+    const oldA = botDiv.querySelector('.msg-actions');
+    if (oldA) oldA.remove();
+    msgs.appendChild(botDiv);
+    textEl = botDiv.querySelector('.text');
+  };
+
+  const renderStream = () => {
+    renderQueued = false;
+    if (!textEl) return;
+    textEl.innerHTML = renderMD(fullText);
+    scrollBottom();
+  };
+
+  const queueRender = () => {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(renderStream);
+  };
 
   try {
     const res = await fetch(API_ENDPOINT, {
@@ -854,6 +879,7 @@ async function generateResponse(chat) {
       throw new Error(errData.error || `HTTP ${res.status}`);
     }
 
+    ensureBot();
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -861,37 +887,38 @@ async function generateResponse(chat) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed.startsWith('data: ')) continue;
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
+        if (!trimmed.startsWith('data:')) continue;
+        const data = trimmed.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
         try {
           const json = JSON.parse(data);
+          if (json.error) throw new Error(json.error);
           const text = json.text || '';
-          if (text) fullText += text;
-        } catch(e) {}
+          if (text) {
+            fullText += text;
+            queueRender();
+          }
+        } catch(e) {
+          if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
+        }
       }
     }
 
-    typing.remove();
+    if (renderQueued) renderStream();
     if (!fullText) throw new Error('Tidak ada respons dari server');
-
-    const botDiv = createMsg('bot', '');
-    const oldA = botDiv.querySelector('.msg-actions');
-    if (oldA) oldA.remove();
-    msgs.appendChild(botDiv);
-    const textEl = botDiv.querySelector('.text');
-    await typewriterEffect(textEl, fullText);
+    textEl.innerHTML = renderMD(fullText);
     enhanceCodeBlocks(botDiv);
     addMsgActions(botDiv, true);
     chat.messages.push({ role: 'bot', content: fullText });
     saveChats();
 
   } catch (err) {
-    typing.remove();
+    if (typing.isConnected) typing.remove();
+    if (botDiv && botDiv.isConnected) botDiv.remove();
     let errMsg = err.message || 'Terjadi kesalahan';
     if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('sibuk') || errMsg.includes('rate')) {
       errMsg = '⏳ Server AI sedang ramai. Tunggu sebentar lalu coba lagi ya 🙏';
@@ -944,6 +971,32 @@ function regenerate() {
   }
 }
 
+function openMediaViewer(dataUrl, type, name) {
+  const modal = document.getElementById('mediaModal');
+  const view = document.getElementById('mediaView');
+  if (!modal || !view || !dataUrl) return;
+  view.innerHTML = '';
+  const el = document.createElement(type === 'video' ? 'video' : 'img');
+  el.src = dataUrl;
+  el.alt = name || '';
+  if (type === 'video') { el.controls = true; el.playsInline = true; el.preload = 'metadata'; }
+  view.appendChild(el);
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+function closeMediaViewer() {
+  const modal = document.getElementById('mediaModal');
+  const view = document.getElementById('mediaView');
+  if (!modal) return;
+  const video = view && view.querySelector('video');
+  if (video) { try { video.pause(); } catch(e) {} }
+  if (view) view.innerHTML = '';
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+
 // ============================================================
 // ATTACHMENT
 // ============================================================
@@ -970,13 +1023,16 @@ function pickAttach(type) {
   document.getElementById(id).addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast('Maksimal 5 MB', 'error'); e.target.value = ''; return; }
     const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    const maxSize = isVideo ? 12 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) { toast(`Maksimal ${isVideo ? '12' : '5'} MB`, 'error'); e.target.value = ''; return; }
+    if (isVideo && !['video/mp4','video/webm','video/quicktime','video/mov'].includes(file.type)) { toast('Format video yang didukung: MP4, WebM, MOV', 'error'); e.target.value = ''; return; }
     const dataUrl = await readFileAsDataURL(file);
-    pendingAttachment = { type: isImage ? 'image' : 'file', dataUrl, name: file.name || (isImage ? 'gambar.jpg' : 'file'), mime: file.type, size: file.size };
+    pendingAttachment = { type: isImage ? 'image' : (isVideo ? 'video' : 'file'), dataUrl, name: file.name || (isImage ? 'gambar.jpg' : (isVideo ? 'video.mp4' : 'file')), mime: file.type, size: file.size };
     showAttachPreview();
     updateSendBtn();
-    toast(`${isImage ? 'Gambar' : 'File'} siap dikirim`, 'success');
+    toast(`${isImage ? 'Gambar' : (isVideo ? 'Video' : 'File')} siap dikirim`, 'success');
     e.target.value = '';
   });
 });
@@ -986,7 +1042,8 @@ function showAttachPreview() {
   const thumb = document.getElementById('attachThumb');
   const name = document.getElementById('attachName');
   const type = document.getElementById('attachType');
-  if (pendingAttachment.type === 'image') { thumb.innerHTML = `<img src="${pendingAttachment.dataUrl}">`; type.textContent = 'Gambar'; }
+  if (pendingAttachment.type === 'image') { thumb.innerHTML = `<img src="${pendingAttachment.dataUrl}">`; type.textContent = 'Gambar · ' + formatSize(pendingAttachment.size); }
+  else if (pendingAttachment.type === 'video') { thumb.innerHTML = `<video src="${pendingAttachment.dataUrl}" muted playsinline preload="metadata"></video>`; type.textContent = 'Video · ' + formatSize(pendingAttachment.size); }
   else { thumb.innerHTML = ICONS.file; type.textContent = 'File · ' + formatSize(pendingAttachment.size); }
   name.textContent = pendingAttachment.name;
   preview.classList.add('show');
@@ -1036,7 +1093,7 @@ document.addEventListener('gestureend', e => e.preventDefault());
 let lastTouchEnd = 0;
 document.addEventListener('touchend', function(e) { const n = Date.now(); if (n - lastTouchEnd <= 300) e.preventDefault(); lastTouchEnd = n; }, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault());
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && previewData) previewClose(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('mediaModal')?.classList.contains('show')) closeMediaViewer(); else if (previewData) previewClose(); } });
 
 // ============================================================
 // INIT
