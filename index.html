@@ -887,23 +887,33 @@ async function generateResponse(chat) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const data = trimmed.slice(5).trim();
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() || '';
+      for (const block of blocks) {
+        const dataLines = block.split(/\r?\n/).filter(x => x.trim().startsWith('data:'));
+        if (!dataLines.length) continue;
+        const data = dataLines.map(x => x.trim().slice(5).trim()).join('\n');
         if (!data || data === '[DONE]') continue;
         try {
           const json = JSON.parse(data);
           if (json.error) throw new Error(json.error);
-          const text = json.text || '';
-          if (text) {
-            fullText += text;
+          if (json.text) {
+            fullText += json.text;
             queueRender();
           }
         } catch(e) {
           if (e.message && e.message !== 'Unexpected end of JSON input') throw e;
+        }
+      }
+    }
+    if (buffer.trim()) {
+      const dataLines = buffer.split(/\r?\n/).filter(x => x.trim().startsWith('data:'));
+      if (dataLines.length) {
+        const data = dataLines.map(x => x.trim().slice(5).trim()).join('\n');
+        if (data && data !== '[DONE]') {
+          const json = JSON.parse(data);
+          if (json.error) throw new Error(json.error);
+          if (json.text) fullText += json.text;
         }
       }
     }

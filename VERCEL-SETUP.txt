@@ -1,27 +1,12 @@
-LYPPE AI - FAST RESPONSE + KNOWLEDGE UPGRADE
-=============================================
+Lyppe AI - FAST / STABLE VERSION
 
-1. Environment Variable WAJIB di Vercel:
-   Name: GEMINI_API_KEY
-   Value: API KEY GEMINI KAMU
-   Environment: Production (dan Preview/Development jika diperlukan)
+1. Upload/replace the project files in GitHub.
+2. Vercel must have this Environment Variable:
+   GEMINI_API_KEY = your Google AI Studio API key
+   Enable it for Production (and Preview if needed).
+3. Redeploy Vercel after changing Environment Variables.
 
-2. Setelah mengubah Environment Variable, lakukan REDEPLOY.
+This version uses Gemini 3.8 Flash via the current Interactions API with streaming SSE and low thinking level for fast responses.
+API key stays server-side and is never placed in index.html.
 
-3. Backend memakai Gemini 3.8 Flash dengan thinking level LOW untuk respons cepat.
-
-4. Mode SEARCH menggunakan Google Search grounding untuk pertanyaan yang membutuhkan informasi terkini.
-   Mode PINTAR tetap tanpa pencarian agar respons umum tetap cepat.
-
-5. Backend mengirim heartbeat SSE sejak awal untuk membantu mencegah request streaming idle/504.
-
-6. History chat dibatasi ke pesan terbaru dan hanya gambar terbaru yang dikirim ke Gemini agar payload lebih ringan.
-
-7. API key HANYA dibaca server-side dari process.env.GEMINI_API_KEY.
-   JANGAN taruh API key di index.html atau GitHub.
-
-Model: gemini-3.8-flash
-Thinking: low
-Streaming: aktif
-Search grounding: aktif khusus MODE SEARCH
-Fallback model berurutan: dimatikan agar tidak menambah delay.
+The frontend also supports image/video attachments and a fullscreen media viewer with an X button.
