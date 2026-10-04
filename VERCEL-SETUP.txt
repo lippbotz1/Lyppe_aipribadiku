@@ -1,0 +1,18 @@
+LYPPE AI - SETUP VERCEL
+
+1. Vercel -> Project -> Settings -> Environment Variables
+2. Tambahkan:
+   Name: GEMINI_API_KEY
+   Value: API key Gemini kamu
+3. Pilih Production (dan Preview/Development jika diperlukan).
+4. Setelah menambah/mengubah variable, WAJIB REDEPLOY.
+5. Frontend memanggil /api/chat. API key tidak pernah ditaruh di index.html.
+
+Opsional:
+GEMINI_MODEL=gemini-2.5-flash
+
+Jika punya beberapa key:
+GEMINI_API_KEYS=key1,key2,key3
+
+Catatan keamanan:
+Jangan commit API key ke GitHub dan jangan menaruhnya di file frontend.
