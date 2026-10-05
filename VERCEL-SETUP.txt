@@ -1,12 +1,20 @@
-Lyppe AI - FAST / STABLE VERSION
+Lyppe AI - FREE MAX / FAST
 
 1. Upload/replace the project files in GitHub.
-2. Vercel must have this Environment Variable:
+2. Vercel Environment Variable (server-side only):
    GEMINI_API_KEY = your Google AI Studio API key
-   Enable it for Production (and Preview if needed).
-3. Redeploy Vercel after changing Environment Variables.
+3. Optional:
+   GEMINI_MODEL = gemini-3.8-flash
+4. Redeploy Vercel after changing Environment Variables.
 
-This version uses Gemini 3.8 Flash via the current Interactions API with streaming SSE and low thinking level for fast responses.
-API key stays server-side and is never placed in index.html.
+FREE MAX optimizations:
+- Gemini 3.8 Flash first; one fallback to Gemini 3.5 Flash-Lite only when the first model returns a quota/rate-limit error.
+- Low thinking level for low latency.
+- Shorter conversation history and trimmed old messages to reduce token usage.
+- Only the newest attachment is sent to Gemini; old base64 media is never resent.
+- Images are compressed in the browser before upload when possible.
+- Video upload is capped at 8 MB.
+- Search mode does NOT enable Google Search grounding because Google currently marks Gemini 3.x Search grounding as unavailable on the Free Tier.
+- API key is never placed in index.html.
 
-The frontend also supports image/video attachments and a fullscreen media viewer with an X button.
+Important: no code can remove Google's Free Tier quota. This version only reduces unnecessary usage and handles 429/quota errors safely.
